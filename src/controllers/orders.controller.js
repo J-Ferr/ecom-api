@@ -132,3 +132,60 @@ export async function listAllOrders(req, res, next) {
     next(err);
   }
 }
+
+export async function getOrderById(req, res, next) {
+  try {
+    const orderId = Number(req.params.id);
+    if (!Number.isInteger(orderId) || orderId <= 0) {
+      return res.status(400).json({ error: "Invalid order id" });
+    }
+
+    const requesterId = Number(req.user.sub);
+    const isAdmin = req.user.role === "admin";
+
+    // Fetch order (and enforce ownership unless admin)
+    const orderQuery = isAdmin
+      ? `SELECT o.id, o.user_id, u.email, o.status, o.total_cents, o.created_at
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         WHERE o.id = $1`
+      : `SELECT o.id, o.user_id, u.email, o.status, o.total_cents, o.created_at
+         FROM orders o
+         JOIN users u ON u.id = o.user_id
+         WHERE o.id = $1 AND o.user_id = $2`;
+
+    const orderParams = isAdmin ? [orderId] : [orderId, requesterId];
+    const orderResult = await pool.query(orderQuery, orderParams);
+
+    if (orderResult.rows.length === 0) {
+      // Either doesn't exist, or user doesn't own it
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Fetch items for this order
+    const itemsResult = await pool.query(
+      `SELECT 
+         oi.id,
+         oi.product_id,
+         p.name AS product_name,
+         oi.quantity,
+         oi.unit_price_cents,
+         (oi.quantity * oi.unit_price_cents) AS line_total_cents
+       FROM order_items oi
+       JOIN products p ON p.id = oi.product_id
+       WHERE oi.order_id = $1
+       ORDER BY oi.id`,
+      [orderId]
+    );
+
+    res.json({
+      ...order,
+      items: itemsResult.rows,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
