@@ -33,3 +33,28 @@ export async function listProducts(req, res, next) {
     next(err);
   }
 }
+
+export async function getProductById(req, res, next) {
+  try {
+    const id = Number(req.params.id);
+
+    if (!Number.isInteger(id) || id <= 0) {
+      return res.status(400).json({ error: "Invalid product id" });
+    }
+
+    const { rows } = await pool.query(
+      `SELECT id, name, description, price_cents, inventory, is_active
+       FROM products
+       WHERE id = $1`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    res.json(rows[0]);
+  } catch (err) {
+    next(err);
+  }
+}
