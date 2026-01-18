@@ -7,6 +7,7 @@ import { errorHandler } from "./middleware/errorHandler.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import { auth } from "./middleware/auth.js";
+import ordersRoutes from "./routes/orders.routes.js";
 
 const app = express();
 
@@ -30,6 +31,8 @@ app.use("/api/auth", authRoutes);
 app.get("/api/me", auth, (req, res) => {
   res.json({ user: req.user });
 });
+
+app.use("/api/orders", ordersRoutes);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`API listening on port ${PORT}`));
