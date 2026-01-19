@@ -11,14 +11,25 @@ export async function createOrder(req, res, next) {
       return res.status(400).json({ error: "items must be a non-empty array" });
     }
 
-    // Validate items
+    // Validate & normalize items, and ALSO combine duplicates
+    // (prevents unique constraint error on (order_id, product_id))
+    const qtyByProduct = new Map();
+
     for (const it of items) {
       const pid = Number(it.product_id);
       const qty = Number(it.quantity);
+
       if (!Number.isInteger(pid) || pid <= 0 || !Number.isInteger(qty) || qty <= 0) {
         return res.status(400).json({ error: "Each item needs valid product_id and quantity" });
       }
+
+      qtyByProduct.set(pid, (qtyByProduct.get(pid) ?? 0) + qty);
     }
+
+    const normalizedItems = Array.from(qtyByProduct.entries()).map(([product_id, quantity]) => ({
+      product_id,
+      quantity,
+    }));
 
     await client.query("BEGIN");
 
@@ -31,52 +42,43 @@ export async function createOrder(req, res, next) {
     );
     const order = orderResult.rows[0];
 
-    // Fetch product info for all requested product_ids
-    const productIds = items.map(i => Number(i.product_id));
-    const productsResult = await client.query(
-      `SELECT id, price_cents, inventory, is_active
-       FROM products
-       WHERE id = ANY($1::bigint[])`,
-      [productIds]
-    );
-
-    const productMap = new Map(productsResult.rows.map(p => [Number(p.id), p]));
-
     let total = 0;
 
-    // Insert order items + compute totals + check inventory
-    for (const it of items) {
+    // ATOMIC inventory decrement + price lookup per item
+    for (const it of normalizedItems) {
       const pid = Number(it.product_id);
       const qty = Number(it.quantity);
 
-      const p = productMap.get(pid);
-      if (!p) {
+      // Atomic update:
+      // - Must exist
+      // - Must be active
+      // - Must have enough inventory
+      // - Decrement happens in same statement
+      const upd = await client.query(
+        `UPDATE products
+         SET inventory = inventory - $1,
+             updated_at = NOW()
+         WHERE id = $2
+           AND is_active = TRUE
+           AND inventory >= $1
+         RETURNING id, price_cents`,
+        [qty, pid]
+      );
+
+      if (upd.rows.length === 0) {
         await client.query("ROLLBACK");
-        return res.status(400).json({ error: `Product ${pid} not found` });
-      }
-      if (!p.is_active) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: `Product ${pid} is not active` });
-      }
-      if (p.inventory < qty) {
-        await client.query("ROLLBACK");
-        return res.status(400).json({ error: `Not enough inventory for product ${pid}` });
+        return res.status(400).json({
+          error: `Product ${pid} not available or insufficient inventory`,
+        });
       }
 
-      total += p.price_cents * qty;
+      const unitPrice = Number(upd.rows[0].price_cents);
+      total += unitPrice * qty;
 
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, unit_price_cents)
          VALUES ($1, $2, $3, $4)`,
-        [order.id, pid, qty, p.price_cents]
-      );
-
-      // Reduce inventory (simple approach)
-      await client.query(
-        `UPDATE products
-         SET inventory = inventory - $1, updated_at = NOW()
-         WHERE id = $2`,
-        [qty, pid]
+        [order.id, pid, qty, unitPrice]
       );
     }
 
@@ -90,15 +92,17 @@ export async function createOrder(req, res, next) {
     );
 
     await client.query("COMMIT");
-
     res.status(201).json(updatedOrder.rows[0]);
   } catch (err) {
-    try { await client.query("ROLLBACK"); } catch {}
+    try {
+      await client.query("ROLLBACK");
+    } catch {}
     next(err);
   } finally {
     client.release();
   }
 }
+
 
 export async function listMyOrders(req, res, next) {
   try {
