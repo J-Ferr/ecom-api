@@ -181,17 +181,5 @@ src/
   middleware/
   routes/
   db/
-License
-MIT (optional)
-
 
 ---
-
-## What to do now (important)
-1. Replace your README with the cleaned version above
-2. Commit it:
-
-```bash
-git add README.md
-git commit -m "docs: polish README with setup and API documentation"
-git push
