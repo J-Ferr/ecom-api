@@ -35,7 +35,8 @@ A RESTful e-commerce backend built with **Node.js**, **Express**, and **PostgreS
 
 ## Getting Started
 
-### 1) Install dependencies
+```text
+1) Install dependencies
 
 ```bash
 npm install
@@ -66,31 +67,23 @@ curl http://localhost:3000/health
 API Overview
 Base URL: http://localhost:3000
 
-Auth
+Authentication
 Register
 POST /api/auth/register
-
 curl -X POST "http://localhost:3000/api/auth/register" \
   -H "Content-Type: application/json" \
   -d '{"email":"test1@example.com","password":"password123"}'
 Login
 POST /api/auth/login
-
 curl -X POST "http://localhost:3000/api/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email":"test1@example.com","password":"password123"}'
 Use the token like:
 
 Authorization: Bearer <TOKEN>
-Current user (protected)
-GET /api/me
-
-curl "http://localhost:3000/api/me" \
-  -H "Authorization: Bearer <TOKEN>"
 Products
 List products (public)
 GET /api/products
-
 Query params:
 
 page (default 1)
@@ -104,33 +97,28 @@ curl "http://localhost:3000/api/products?limit=2&page=1"
 curl "http://localhost:3000/api/products?active=true"
 Get product by id
 GET /api/products/:id
-
 curl "http://localhost:3000/api/products/1"
 Create product (admin only)
 POST /api/products
-
 curl -X POST "http://localhost:3000/api/products" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -d '{"name":"Water Bottle","description":"24oz stainless steel","price_cents":2499,"inventory":20,"is_active":true}'
-On Windows/Git Bash, run curl commands as a single line if headers get flaky.
-
 Update product (admin only)
 PUT /api/products/:id
-
 curl -X PUT "http://localhost:3000/api/products/1" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <ADMIN_TOKEN>" \
   -d '{"price_cents":2199,"inventory":15}'
 Delete product (admin only)
 DELETE /api/products/:id
-
 curl -X DELETE "http://localhost:3000/api/products/1" \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
+On Windows / Git Bash, run curl commands on a single line if headers get flaky.
+
 Orders
 Create order (customer)
 POST /api/orders
-
 {
   "items": [
     { "product_id": 1, "quantity": 2 },
@@ -141,8 +129,8 @@ curl -X POST "http://localhost:3000/api/orders" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <CUSTOMER_TOKEN>" \
   -d '{"items":[{"product_id":1,"quantity":2},{"product_id":2,"quantity":1}]}'
-Atomic Inventory
-Inventory is decremented atomically using a single SQL statement per item:
+Atomic Inventory Control
+Inventory is decremented atomically:
 
 prevents overselling under concurrent requests
 
@@ -150,12 +138,10 @@ fails the order if inventory is insufficient
 
 List my orders (customer)
 GET /api/orders/me
-
 curl "http://localhost:3000/api/orders/me" \
   -H "Authorization: Bearer <CUSTOMER_TOKEN>"
 List all orders (admin)
 GET /api/orders
-
 curl "http://localhost:3000/api/orders" \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 Error Responses
@@ -176,10 +162,11 @@ Common codes:
 
 Project Structure
 src/
-  config/
-  controllers/
-  middleware/
-  routes/
-  db/
-
----
+├── config/
+├── controllers/
+├── middleware/
+├── routes/
+├── db/
+│   ├── schema.sql
+│   └── seed.sql
+└── server.js
