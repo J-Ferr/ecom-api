@@ -40,6 +40,7 @@ A RESTful e-commerce backend built with **Node.js**, **Express**, and **PostgreS
 
 ```bash
 npm install
+
 2) Create .env
 Create a .env file in the project root:
 
